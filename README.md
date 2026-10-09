@@ -1,8 +1,8 @@
 # group5
 
 ## 📌 Project Scope
-A web-based application developed by Group 5 (Gwapitos and Gwapitas) for [YOUR COURSE NAME]. 
-The system aims to [ONE SENTENCE ABOUT WHAT YOUR APP DOES].
+A web-based application developed by Group 5 (Gwapitos and Gwapitas). 
+The system aims to [Gwapito and Gwapita].
 
 ## 🛠️ Setup Instructions
 1. Clone the repository:
