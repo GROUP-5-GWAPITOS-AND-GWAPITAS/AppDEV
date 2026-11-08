@@ -4,8 +4,6 @@ import 'dart:convert';
 import 'package:provider/provider.dart';
 import '../core/theme.dart';
 import '../providers/auth_provider.dart';
-import 'post_job_screen.dart';
-import 'match_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -32,6 +30,8 @@ class _HomeScreenState extends State<HomeScreen> {
         jobs = jsonDecode(response.body);
         isLoading = false;
       });
+    } else {
+      setState(() => isLoading = false);
     }
   }
 
@@ -84,11 +84,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     const SizedBox(height: 20),
                     InkWell(
                       onTap: () async {
-                        final result = await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (context) => const PostJobScreen()));
-                        if (result == true) fetchJobs();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                              content:
+                                  Text('Job posting is not available yet.')),
+                        );
                       },
                       child: Container(
                         padding: const EdgeInsets.all(20),
@@ -186,11 +186,13 @@ class _HomeScreenState extends State<HomeScreen> {
                       itemBuilder: (context, index) {
                         final job = jobs[index];
                         return InkWell(
-                          onTap: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (context) =>
-                                      MatchScreen(jobId: job['_id']))),
+                          onTap: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                  content:
+                                      Text('Selected job: ${job['title']}')),
+                            );
+                          },
                           child: Container(
                             margin: const EdgeInsets.only(bottom: 12),
                             padding: const EdgeInsets.all(16),
