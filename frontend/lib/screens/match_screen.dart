@@ -7,6 +7,7 @@ import 'worker_profile_screen.dart';
 class MatchScreen extends StatefulWidget {
   final String? jobId;
   const MatchScreen({super.key, this.jobId});
+
   @override
   State<MatchScreen> createState() => _MatchScreenState();
 }
@@ -14,6 +15,7 @@ class MatchScreen extends StatefulWidget {
 class _MatchScreenState extends State<MatchScreen> {
   List<dynamic> workers = [];
   bool isLoading = true;
+  Set<String> sentOffers = {}; 
 
   @override
   void initState() {
@@ -25,15 +27,44 @@ class _MatchScreenState extends State<MatchScreen> {
     setState(() => isLoading = true);
     String url = 'http://localhost:3000/api/workers';
     if (widget.jobId != null) url += '?jobId=${widget.jobId}';
+    
     final response = await http.get(Uri.parse(url));
     if (response.statusCode == 200) {
-      setState(() { workers = jsonDecode(response.body); isLoading = false; });
+      setState(() { 
+        workers = jsonDecode(response.body); 
+        isLoading = false; 
+      });
     }
   }
 
   Future<void> shortlistWorker(String workerId) async {
-    await http.post(Uri.parse('http://localhost:3000/api/workers/shortlist'), headers: {"Content-Type": "application/json"}, body: jsonEncode({"workerId": workerId}));
-    fetchWorkers();
+    try {
+      final response = await http.post(
+        Uri.parse('http://localhost:3000/api/workers/shortlist'),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({
+          "workerId": workerId,
+          "jobId": widget.jobId, 
+          "clientId": "64b0f9a2e4b0a1a2c3d4e5f6" 
+        }),
+      );
+
+      if (response.statusCode == 201) {
+        setState(() {
+          sentOffers.add(workerId); 
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Offer sent to worker!")),
+        );
+      } else {
+        final error = jsonDecode(response.body);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error['error'] ?? "Failed to send offer")),
+        );
+      }
+    } catch (e) {
+      print("Error shortlisting: $e");
+    }
   }
 
   @override
@@ -48,9 +79,21 @@ class _MatchScreenState extends State<MatchScreen> {
                     padding: const EdgeInsets.all(20.0),
                     child: Row(
                       children: [
-                        if (widget.jobId != null) IconButton(icon: const Icon(Icons.arrow_back, size: 28), onPressed: () => Navigator.pop(context)) else const SizedBox(width: 48),
+                        if (widget.jobId != null) 
+                          IconButton(icon: const Icon(Icons.arrow_back, size: 28), onPressed: () => Navigator.pop(context)) 
+                        else 
+                          const SizedBox(width: 48),
                         const SizedBox(width: 8),
-                        RichText(text: const TextSpan(style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: primaryNavy), children: [TextSpan(text: "WORK "), TextSpan(text: "| ", style: TextStyle(color: accentOrange)), TextSpan(text: "MATCH")])),
+                        RichText(
+                          text: const TextSpan(
+                            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: primaryNavy), 
+                            children: [
+                              TextSpan(text: "WORK "), 
+                              TextSpan(text: "| ", style: TextStyle(color: accentOrange)), 
+                              TextSpan(text: "MATCH")
+                            ]
+                          )
+                        ),
                       ],
                     ),
                   ),
@@ -65,7 +108,19 @@ class _MatchScreenState extends State<MatchScreen> {
                         const SizedBox(height: 16),
                         const Text("Site Construction Supervisor", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
                         const SizedBox(height: 12),
-                        Row(children: [Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: Colors.green, borderRadius: BorderRadius.circular(8)), child: const Text("\$45/hr", style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold))), const SizedBox(width: 12), const Icon(Icons.location_on, color: Colors.white70, size: 16), const SizedBox(width: 4), const Text("Cagayan de Oro", style: TextStyle(color: Colors.white70, fontSize: 12))]),
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), 
+                              decoration: BoxDecoration(color: Colors.green, borderRadius: BorderRadius.circular(8)), 
+                              child: const Text("\$45/hr", style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold))
+                            ), 
+                            const SizedBox(width: 12), 
+                            const Icon(Icons.location_on, color: Colors.white70, size: 16), 
+                            const SizedBox(width: 4), 
+                            const Text("Cagayan de Oro", style: TextStyle(color: Colors.white70, fontSize: 12))
+                          ]
+                        ),
                       ],
                     ),
                   ),
@@ -76,6 +131,8 @@ class _MatchScreenState extends State<MatchScreen> {
                       itemCount: workers.length,
                       itemBuilder: (context, index) {
                         final worker = workers[index];
+                        final bool isOfferSent = sentOffers.contains(worker['_id']) || (worker['shortlisted'] == true);
+
                         return Container(
                           margin: const EdgeInsets.only(bottom: 16),
                           padding: const EdgeInsets.all(16),
@@ -88,18 +145,84 @@ class _MatchScreenState extends State<MatchScreen> {
                                 children: [
                                   const CircleAvatar(radius: 30, backgroundColor: textGray, child: Icon(Icons.person, color: Colors.white)),
                                   const SizedBox(width: 16),
-                                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(worker['userId']['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)), Text(worker['roleTitle'], style: const TextStyle(color: textGray, fontSize: 12)), const SizedBox(height: 4), Row(children: const [Icon(Icons.star, color: Colors.amber, size: 16), Icon(Icons.star, color: Colors.amber, size: 16), Icon(Icons.star, color: Colors.amber, size: 16), Icon(Icons.star, color: Colors.amber, size: 16), Icon(Icons.star_half, color: Colors.amber, size: 16), SizedBox(width: 4), Text("4.9 (124 reviews)", style: TextStyle(color: textGray, fontSize: 10))])])),
-                                  Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Colors.green, width: 2)), child: Column(mainAxisSize: MainAxisSize.min, children: [Text("${worker['match']}%", style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 16)), const Text("Match", style: TextStyle(color: textGray, fontSize: 10))])),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start, 
+                                      children: [
+                                        Text(worker['userId']['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)), 
+                                        Text(worker['roleTitle'], style: const TextStyle(color: textGray, fontSize: 12)), 
+                                        const SizedBox(height: 4), 
+                                        Row(
+                                          children: const [
+                                            Icon(Icons.star, color: Colors.amber, size: 16), 
+                                            Icon(Icons.star, color: Colors.amber, size: 16), 
+                                            Icon(Icons.star, color: Colors.amber, size: 16), 
+                                            Icon(Icons.star, color: Colors.amber, size: 16), 
+                                            Icon(Icons.star_half, color: Colors.amber, size: 16), 
+                                            SizedBox(width: 4), 
+                                            Text("4.9 (124 reviews)", style: TextStyle(color: textGray, fontSize: 10))
+                                          ]
+                                        )
+                                      ]
+                                    )
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.all(12), 
+                                    decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Colors.green, width: 2)), 
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min, 
+                                      children: [
+                                        Text("${worker['match']}%", style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 16)), 
+                                        const Text("Match", style: TextStyle(color: textGray, fontSize: 10))
+                                      ]
+                                    )
+                                  ),
                                 ],
                               ),
                               const SizedBox(height: 12),
-                              Wrap(spacing: 8, runSpacing: 8, children: (worker['skills'] as List).map((skill) => Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(20)), child: Row(mainAxisSize: MainAxisSize.min, children: [Text(skill, style: const TextStyle(color: Colors.green, fontSize: 10)), const SizedBox(width: 4), const Icon(Icons.check_circle, color: Colors.green, size: 12)]))).toList()),
+                              Wrap(
+                                spacing: 8, 
+                                runSpacing: 8, 
+                                children: (worker['skills'] as List).map((skill) => Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), 
+                                  decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(20)), 
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min, 
+                                    children: [
+                                      Text(skill, style: const TextStyle(color: Colors.green, fontSize: 10)), 
+                                      const SizedBox(width: 4), 
+                                      const Icon(Icons.check_circle, color: Colors.green, size: 12)
+                                    ]
+                                  )
+                                )).toList()
+                              ),
                               const SizedBox(height: 16),
                               Row(
                                 children: [
-                                  Expanded(child: OutlinedButton(style: OutlinedButton.styleFrom(side: const BorderSide(color: primaryNavy), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => WorkerProfileScreen(worker: worker))), child: const Text("View Profile", style: TextStyle(color: primaryNavy)))),
+                                  Expanded(
+                                    child: OutlinedButton(
+                                      style: OutlinedButton.styleFrom(
+                                        side: const BorderSide(color: primaryNavy), 
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))
+                                      ), 
+                                      onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => WorkerProfileScreen(worker: worker))), 
+                                      child: const Text("View Profile", style: TextStyle(color: primaryNavy))
+                                    )
+                                  ),
                                   const SizedBox(width: 12),
-                                  Expanded(child: ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: worker['shortlisted'] ? Colors.green : primaryNavy, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))), onPressed: () => shortlistWorker(worker['_id']), child: Text(worker['shortlisted'] ? "Shortlisted" : "Shortlist", style: const TextStyle(color: Colors.white)))),
+                                  Expanded(
+                                    child: ElevatedButton(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: isOfferSent ? Colors.grey : primaryNavy, 
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))
+                                      ),
+                                      onPressed: isOfferSent ? null : () => shortlistWorker(worker['_id']), 
+                                      child: Text(
+                                        isOfferSent ? "Offer Sent" : "Shortlist", 
+                                        style: const TextStyle(color: Colors.white)
+                                      )
+                                    )
+                                  ),
                                 ],
                               )
                             ],
