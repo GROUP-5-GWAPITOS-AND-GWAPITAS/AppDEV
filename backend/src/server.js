@@ -1,3 +1,4 @@
+// waka gama og issue daan sir, pull dayun naku #2
 const dns = require('dns');
 dns.setServers(['8.8.8.8', '8.8.4.4']);
 
