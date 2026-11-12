@@ -44,6 +44,14 @@ const WorkerProfile = mongoose.model('WorkerProfile', new mongoose.Schema({
     shortlisted: { type: Boolean, default: false }
 }));
 
+// --- APPLICATION MODEL (ISSUE #1) ---
+const Application = mongoose.model('Application', new mongoose.Schema({
+    jobId: { type: mongoose.Schema.Types.ObjectId, ref: 'Job', required: true },
+    workerId: { type: mongoose.Schema.Types.ObjectId, ref: 'WorkerProfile', required: true },
+    clientId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    status: { type: String, enum: ['pending', 'accepted', 'rejected'], default: 'pending' }
+}, { timestamps: true }));
+
 // --- AUTHENTICATION ROUTES ---
 app.post('/api/register', async (req, res) => {
     try {
@@ -63,7 +71,23 @@ app.post('/api/login', async (req, res) => {
     if (!validPass) return res.status(400).json({ error: "Invalid password" });
 
     const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET);
-    res.json({ token, user: { name: user.name, email: user.email, role: user.role } });
+    
+    // NEW: Send Worker Profile ID if the user is a worker
+    let workerProfileId = null;
+    if (user.role === 'worker') {
+        const profile = await WorkerProfile.findOne({ userId: user._id });
+        if (profile) workerProfileId = profile._id;
+    }
+
+    res.json({ 
+        token, 
+        user: { 
+            name: user.name, 
+            email: user.email, 
+            role: user.role,
+            workerProfileId: workerProfileId 
+        } 
+    });
 });
 
 // --- JOB ROUTES ---
@@ -77,7 +101,7 @@ app.post('/api/jobs', async (req, res) => {
     res.status(201).json(newJob);
 });
 
-// --- WORKER ROUTES (With Matching Algorithm) ---
+// --- WORKER & MATCHING ROUTES ---
 app.get('/api/workers', async (req, res) => {
     try {
         const { jobId } = req.query;
@@ -110,6 +134,7 @@ app.get('/api/workers', async (req, res) => {
     }
 });
 
+// --- OFFER ROUTES ---
 app.post('/api/workers/shortlist', async (req, res) => {
     try {
         const { workerId, jobId, clientId } = req.body;
@@ -135,26 +160,42 @@ app.get('/api/worker/offers/:workerId', async (req, res) => {
     }
 });
 
-// --- SEED DATA ---
+app.post('/api/worker/offers/:offerId/respond', async (req, res) => {
+    try {
+        const { status } = req.body;
+        if (!['accepted', 'rejected'].includes(status)) return res.status(400).json({ error: "Invalid status" });
+        const offer = await Application.findByIdAndUpdate(req.params.offerId, { status }, { new: true });
+        res.json({ message: `Offer ${status}`, offer });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// --- SEED ROUTE (ISSUE #3) ---
 app.get('/api/seed', async (req, res) => {
     try {
         await Job.deleteMany({});
         await WorkerProfile.deleteMany({});
+        await Application.deleteMany({});
+        await User.deleteMany({ email: { $in: ["marco@test.com", "rafael@test.com", "client@test.com"] } }); 
         
-        await Job.create({ 
-            title: "Plumbing Repair", 
-            description: "Leaky sink", 
-            status: "Finding pros...",
-            requiredSkills: ["Site Safety", "Blueprint Reading"] 
-        });
+        let client = await User.create({ name: "John Doe", email: "client@test.com", password: await bcrypt.hash("123", 10), role: "client" });
+
+        const job1 = await Job.create({ title: "Plumbing Repair", description: "Leaky sink", status: "Finding pros...", requiredSkills: ["Site Safety", "Blueprint Reading"] });
+        const job2 = await Job.create({ title: "Electrical Wiring", description: "Fix the lights", status: "Finding pros...", requiredSkills: ["Problem Solving"] });
         
-        const w1 = await User.create({ name: "Marco Dela Cruz", email: "marco@test.com", password: "123", role: "worker" });
-        const w2 = await User.create({ name: "Rafael Santos", email: "rafael@test.com", password: "123", role: "worker" });
+        const w1 = await User.create({ name: "Marco Dela Cruz", email: "marco@test.com", password: await bcrypt.hash("123", 10), role: "worker" });
+        const w2 = await User.create({ name: "Rafael Santos", email: "rafael@test.com", password: await bcrypt.hash("123", 10), role: "worker" });
 
-        await WorkerProfile.create({ userId: w1._id, roleTitle: "Site Construction Supervisor", location: "Cagayan de Oro", skills: ["Site Safety", "Team Coordination"] });
-        await WorkerProfile.create({ userId: w2._id, roleTitle: "Site Construction Supervisor", location: "Cagayan de Oro", skills: ["Blueprint Reading", "Problem Solving"] });
+        const worker1 = await WorkerProfile.create({ userId: w1._id, roleTitle: "Site Construction Supervisor", location: "Cagayan de Oro", skills: ["Site Safety", "Team Coordination"] });
+        const worker2 = await WorkerProfile.create({ userId: w2._id, roleTitle: "Site Construction Supervisor", location: "Cagayan de Oro", skills: ["Blueprint Reading", "Problem Solving"] });
 
-        res.json({ message: "Database Seeded!" });
+        // Create Test Offers
+        await Application.create({ jobId: job1._id, workerId: worker1._id, clientId: client._id, status: 'pending' });
+        await Application.create({ jobId: job2._id, workerId: worker2._id, clientId: client._id, status: 'accepted' });
+        await Application.create({ jobId: job2._id, workerId: worker1._id, clientId: client._id, status: 'rejected' });
+
+        res.json({ message: "Database Seeded! Test offers generated.", workerLogin: "marco@test.com / 123" });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
