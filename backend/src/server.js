@@ -1,4 +1,3 @@
-// waka gama og issue daan sir, pull dayun naku #2
 const dns = require('dns');
 dns.setServers(['8.8.8.8', '8.8.4.4']);
 
@@ -112,6 +111,7 @@ app.get('/api/workers', async (req, res) => {
     }
 });
 
+// --- OFFER ROUTES ---
 app.post('/api/workers/shortlist', async (req, res) => {
     try {
         const { workerId, jobId, clientId } = req.body;
@@ -125,7 +125,6 @@ app.post('/api/workers/shortlist', async (req, res) => {
     }
 });
 
-// --- OFFER ROUTES ---
 app.get('/api/worker/offers/:workerId', async (req, res) => {
     try {
         const offers = await Application.find({ workerId: req.params.workerId })
@@ -157,13 +156,13 @@ app.get('/api/seed', async (req, res) => {
         await User.deleteMany({ email: { $in: ["marco@test.com", "rafael@test.com"] } }); 
         
         let client = await User.findOne({ email: "client@test.com" });
-        if (!client) client = await User.create({ name: "John Doe", email: "client@test.com", password: "123", role: "client" });
+        if (!client) client = await User.create({ name: "John Doe", email: "client@test.com", password: await bcrypt.hash("123", 10), role: "client" });
 
         const job1 = await Job.create({ title: "Plumbing Repair", description: "Leaky sink", status: "Finding pros...", requiredSkills: ["Site Safety", "Blueprint Reading"] });
         const job2 = await Job.create({ title: "Electrical Wiring", description: "Fix the lights", status: "Finding pros...", requiredSkills: ["Problem Solving"] });
         
-        const w1 = await User.create({ name: "Marco Dela Cruz", email: "marco@test.com", password: "123", role: "worker" });
-        const w2 = await User.create({ name: "Rafael Santos", email: "rafael@test.com", password: "123", role: "worker" });
+        const w1 = await User.create({ name: "Marco Dela Cruz", email: "marco@test.com", password: await bcrypt.hash("123", 10), role: "worker" });
+        const w2 = await User.create({ name: "Rafael Santos", email: "rafael@test.com", password: await bcrypt.hash("123", 10), role: "worker" });
 
         const worker1 = await WorkerProfile.create({ userId: w1._id, roleTitle: "Site Construction Supervisor", location: "Cagayan de Oro", skills: ["Site Safety", "Team Coordination"] });
         const worker2 = await WorkerProfile.create({ userId: w2._id, roleTitle: "Site Construction Supervisor", location: "Cagayan de Oro", skills: ["Blueprint Reading", "Problem Solving"] });
@@ -172,7 +171,7 @@ app.get('/api/seed', async (req, res) => {
         await Application.create({ jobId: job2._id, workerId: worker2._id, clientId: client._id, status: 'accepted' });
         await Application.create({ jobId: job2._id, workerId: worker1._id, clientId: client._id, status: 'rejected' });
 
-        res.json({ message: "Database Seeded! Test offers generated." });
+        res.json({ message: "Database Seeded! Test offers generated.", workerLogin: "marco@test.com / 123" });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
