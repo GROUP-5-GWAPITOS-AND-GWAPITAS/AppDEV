@@ -85,14 +85,16 @@ app.post('/api/jobs', async (req, res) => {
     res.status(201).json(newJob);
 });
 
-// --- WORKER ROUTES ---
+// --- WORKER ROUTES (With Matching Algorithm) ---
 app.get('/api/workers', async (req, res) => {
     try {
         const { jobId } = req.query;
         const workers = await WorkerProfile.find().populate('userId', 'name');
         
         let job = null;
-        if (jobId) job = await Job.findById(jobId);
+        if (jobId) {
+            job = await Job.findById(jobId);
+        }
 
         if (!job || !job.requiredSkills || job.requiredSkills.length === 0) {
             return res.json(workers.map(w => ({ ...w._doc, match: 0 })));
@@ -100,12 +102,16 @@ app.get('/api/workers', async (req, res) => {
 
         const matchedWorkers = workers.map(worker => {
             const workerSkills = worker.skills || [];
-            const matches = job.requiredSkills.filter(skill => workerSkills.includes(skill));
-            const matchPercentage = Math.round((matches.length / job.requiredSkills.length) * 100);
+            const requiredSkills = job.requiredSkills;
+            
+            const matches = requiredSkills.filter(skill => workerSkills.includes(skill));
+            const matchPercentage = Math.round((matches.length / requiredSkills.length) * 100);
+            
             return { ...worker._doc, match: matchPercentage };
         });
 
         matchedWorkers.sort((a, b) => b.match - a.match);
+
         res.json(matchedWorkers);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -153,8 +159,6 @@ app.get('/api/seed', async (req, res) => {
     try {
         await Job.deleteMany({});
         await WorkerProfile.deleteMany({});
-        await Application.deleteMany({});
-        await User.deleteMany({ email: { $in: ["marco@test.com", "rafael@test.com"] } }); 
         
         // Create a Test Client
         let client = await User.findOne({ email: "client@test.com" });
