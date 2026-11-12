@@ -70,7 +70,23 @@ app.post('/api/login', async (req, res) => {
     if (!validPass) return res.status(400).json({ error: "Invalid password" });
 
     const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET);
-    res.json({ token, user: { name: user.name, email: user.email, role: user.role } });
+    
+    // NEW: Send Worker Profile ID if the user is a worker
+    let workerProfileId = null;
+    if (user.role === 'worker') {
+        const profile = await WorkerProfile.findOne({ userId: user._id });
+        if (profile) workerProfileId = profile._id;
+    }
+
+    res.json({ 
+        token, 
+        user: { 
+            name: user.name, 
+            email: user.email, 
+            role: user.role,
+            workerProfileId: workerProfileId 
+        } 
+    });
 });
 
 // --- JOB ROUTES ---
@@ -84,7 +100,7 @@ app.post('/api/jobs', async (req, res) => {
     res.status(201).json(newJob);
 });
 
-// --- WORKER ROUTES ---
+// --- WORKER & MATCHING ROUTES ---
 app.get('/api/workers', async (req, res) => {
     try {
         const { jobId } = req.query;
@@ -153,10 +169,9 @@ app.get('/api/seed', async (req, res) => {
         await Job.deleteMany({});
         await WorkerProfile.deleteMany({});
         await Application.deleteMany({});
-        await User.deleteMany({ email: { $in: ["marco@test.com", "rafael@test.com"] } }); 
+        await User.deleteMany({ email: { $in: ["marco@test.com", "rafael@test.com", "client@test.com"] } }); 
         
-        let client = await User.findOne({ email: "client@test.com" });
-        if (!client) client = await User.create({ name: "John Doe", email: "client@test.com", password: await bcrypt.hash("123", 10), role: "client" });
+        let client = await User.create({ name: "John Doe", email: "client@test.com", password: await bcrypt.hash("123", 10), role: "client" });
 
         const job1 = await Job.create({ title: "Plumbing Repair", description: "Leaky sink", status: "Finding pros...", requiredSkills: ["Site Safety", "Blueprint Reading"] });
         const job2 = await Job.create({ title: "Electrical Wiring", description: "Fix the lights", status: "Finding pros...", requiredSkills: ["Problem Solving"] });
