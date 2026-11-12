@@ -3,16 +3,10 @@ import 'package:provider/provider.dart';
 import 'providers/auth_provider.dart';
 import 'screens/sign_in_dashboard.dart';
 import 'screens/main_navigation.dart';
+import 'screens/worker_dashboard.dart'; // ADD THIS IMPORT
 import 'core/theme.dart';
 
-void main() {
-  runApp(
-    ChangeNotifierProvider(
-      create: (context) => AuthProvider(),
-      child: const MyApp(),
-    ),
-  );
-}
+// ... (keep void main() the same) ...
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -25,9 +19,13 @@ class MyApp extends StatelessWidget {
       home: Consumer<AuthProvider>(
         builder: (context, auth, child) {
           if (auth.isAuthenticated) {
-            return const MainNavigation();
+            if (auth.userRole == 'worker') {
+              return const WorkerDashboard(); // Route to worker UI
+            } else {
+              return const MainNavigation(); // Route to client UI
+            }
           } else {
-            return const SignInDashboard();
+            return const SignInDashboard(); 
           }
         },
       ),

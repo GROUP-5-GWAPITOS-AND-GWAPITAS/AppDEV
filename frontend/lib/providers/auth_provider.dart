@@ -6,8 +6,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 class AuthProvider extends ChangeNotifier {
   String? _token;
   String? _userName;
+  String? _userRole;
+  String? _workerProfileId;
+
   bool get isAuthenticated => _token != null;
   String? get userName => _userName;
+  String? get userRole => _userRole;
+  String? get workerProfileId => _workerProfileId;
 
   AuthProvider() { _loadToken(); }
 
@@ -15,6 +20,8 @@ class AuthProvider extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     _token = prefs.getString('token');
     _userName = prefs.getString('userName');
+    _userRole = prefs.getString('userRole');
+    _workerProfileId = prefs.getString('workerProfileId');
     notifyListeners();
   }
 
@@ -28,9 +35,17 @@ class AuthProvider extends ChangeNotifier {
       final data = jsonDecode(res.body);
       _token = data['token'];
       _userName = data['user']['name'];
+      _userRole = data['user']['role'];
+      _workerProfileId = data['user']['workerProfileId'];
+
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('token', _token!);
       await prefs.setString('userName', _userName!);
+      await prefs.setString('userRole', _userRole!);
+      if (_workerProfileId != null) {
+        await prefs.setString('workerProfileId', _workerProfileId!);
+      }
+      
       notifyListeners();
       return true;
     }
@@ -49,15 +64,19 @@ class AuthProvider extends ChangeNotifier {
   Future<void> loginWithGoogle() async {
     _token = "fake_google_token_123";
     _userName = "Google User";
+    _userRole = "client"; // Default to client for Google Login
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('token', _token!);
     await prefs.setString('userName', _userName!);
+    await prefs.setString('userRole', _userRole!);
     notifyListeners();
   }
 
   Future<void> logout() async {
     _token = null;
     _userName = null;
+    _userRole = null;
+    _workerProfileId = null;
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear();
     notifyListeners();
