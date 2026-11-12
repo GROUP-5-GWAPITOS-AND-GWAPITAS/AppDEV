@@ -15,8 +15,6 @@ class MatchScreen extends StatefulWidget {
 class _MatchScreenState extends State<MatchScreen> {
   List<dynamic> workers = [];
   bool isLoading = true;
-  
-  // Track which workers have received an offer to update the UI instantly
   Set<String> sentOffers = {}; 
 
   @override
@@ -47,13 +45,13 @@ class _MatchScreenState extends State<MatchScreen> {
         body: jsonEncode({
           "workerId": workerId,
           "jobId": widget.jobId, 
-          "clientId": "64b0f9a2e4b0a1a2c3d4e5f6" // Placeholder ID
+          "clientId": "64b0f9a2e4b0a1a2c3d4e5f6" 
         }),
       );
 
       if (response.statusCode == 201) {
         setState(() {
-          sentOffers.add(workerId); // Update UI to show "Offer Sent"
+          sentOffers.add(workerId); 
         });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Offer sent to worker!")),
@@ -133,7 +131,6 @@ class _MatchScreenState extends State<MatchScreen> {
                       itemCount: workers.length,
                       itemBuilder: (context, index) {
                         final worker = workers[index];
-                        // Check if this specific worker is in our "sent" list OR if the backend says they are shortlisted
                         final bool isOfferSent = sentOffers.contains(worker['_id']) || (worker['shortlisted'] == true);
 
                         return Container(
