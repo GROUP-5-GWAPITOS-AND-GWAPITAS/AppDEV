@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'providers/auth_provider.dart';
 import 'screens/sign_in_dashboard.dart';
 import 'screens/main_navigation.dart';
+import 'screens/worker_dashboard.dart'; 
 import 'core/theme.dart';
 
 void main() {
@@ -16,6 +17,7 @@ void main() {
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -25,9 +27,13 @@ class MyApp extends StatelessWidget {
       home: Consumer<AuthProvider>(
         builder: (context, auth, child) {
           if (auth.isAuthenticated) {
-            return const MainNavigation();
+            if (auth.userRole == 'worker') {
+              return const WorkerDashboard(); 
+            } else {
+              return const MainNavigation(); 
+            }
           } else {
-            return const SignInDashboard();
+            return const SignInDashboard(); 
           }
         },
       ),

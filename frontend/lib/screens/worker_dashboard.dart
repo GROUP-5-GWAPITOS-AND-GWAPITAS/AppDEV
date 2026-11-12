@@ -1,5 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:provider/provider.dart';
 import '../core/theme.dart';
+import '../providers/auth_provider.dart';
+import 'worker_profile_setup.dart';
+import 'browse_jobs_screen.dart'; // ADDED IMPORT
 
 class WorkerDashboard extends StatefulWidget {
   const WorkerDashboard({super.key});
@@ -11,28 +17,15 @@ class WorkerDashboard extends StatefulWidget {
 class _WorkerDashboardState extends State<WorkerDashboard>
     with SingleTickerProviderStateMixin {
   late final TabController _tabController;
-
-  final List<_JobOffer> _pendingJobs = [
-    const _JobOffer(
-      title: 'Plumbing Repair',
-      client: 'John Doe',
-      location: 'Cagayan de Oro',
-      rate: '\$45/hr',
-    ),
-    const _JobOffer(
-      title: 'Electrical Wiring',
-      client: 'Jane Smith',
-      location: 'Cagayan de Oro',
-      rate: '\$60/hr',
-    ),
-  ];
-  final List<_JobOffer> _acceptedJobs = [];
-  final List<_JobOffer> _rejectedJobs = [];
+  
+  List<dynamic> offers = [];
+  bool isLoading = true;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    fetchOffers();
   }
 
   @override
@@ -41,11 +34,48 @@ class _WorkerDashboardState extends State<WorkerDashboard>
     super.dispose();
   }
 
-  void _updateJobStatus(_JobOffer job, bool accepted) {
-    setState(() {
-      _pendingJobs.remove(job);
-      (accepted ? _acceptedJobs : _rejectedJobs).add(job);
-    });
+  Future<void> fetchOffers() async {
+    setState(() => isLoading = true);
+    final workerId = context.read<AuthProvider>().workerProfileId;
+    
+    if (workerId == null) {
+      setState(() => isLoading = false);
+      return;
+    }
+
+    try {
+      final response = await http.get(
+        Uri.parse('http://localhost:3000/api/worker/offers/$workerId'),
+      );
+      if (response.statusCode == 200) {
+        setState(() {
+          offers = jsonDecode(response.body);
+          isLoading = false;
+        });
+      }
+    } catch (e) {
+      print("Error fetching offers: $e");
+      setState(() => isLoading = false);
+    }
+  }
+
+  Future<void> respondToOffer(String offerId, String status) async {
+    try {
+      final response = await http.post(
+        Uri.parse('http://localhost:3000/api/worker/offers/$offerId/respond'),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({"status": status}),
+      );
+
+      if (response.statusCode == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Offer $status!")),
+        );
+        fetchOffers(); 
+      }
+    } catch (e) {
+      print("Error responding to offer: $e");
+    }
   }
 
   @override
@@ -57,6 +87,21 @@ class _WorkerDashboardState extends State<WorkerDashboard>
           'Worker Dashboard',
           style: TextStyle(color: Colors.white),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit, color: Colors.white),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const WorkerProfileSetup()),
+              );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.logout, color: Colors.white),
+            onPressed: () => context.read<AuthProvider>().logout(),
+          )
+        ],
         bottom: TabBar(
           controller: _tabController,
           indicatorColor: accentOrange,
@@ -69,35 +114,51 @@ class _WorkerDashboardState extends State<WorkerDashboard>
           ],
         ),
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _buildJobList(_pendingJobs, isPending: true),
-          _buildJobList(_acceptedJobs, emptyMessage: 'No accepted jobs yet.'),
-          _buildJobList(_rejectedJobs, emptyMessage: 'No rejected jobs yet.'),
-        ],
+      // --- NEW FLOATING ACTION BUTTON ---
+      floatingActionButton: FloatingActionButton.extended(
+        backgroundColor: accentOrange,
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const BrowseJobsScreen()),
+          );
+        },
+        icon: const Icon(Icons.search, color: Colors.white),
+        label: const Text("Browse Jobs", style: TextStyle(color: Colors.white)),
       ),
+      // ----------------------------------
+      body: isLoading 
+        ? const Center(child: CircularProgressIndicator())
+        : TabBarView(
+          controller: _tabController,
+          children: [
+            _buildJobList('pending'),
+            _buildJobList('accepted'),
+            _buildJobList('rejected'),
+          ],
+        ),
     );
   }
 
-  Widget _buildJobList(
-    List<_JobOffer> jobs, {
-    bool isPending = false,
-    String? emptyMessage,
-  }) {
-    if (jobs.isEmpty && emptyMessage != null) {
-      return Center(child: Text(emptyMessage));
+  Widget _buildJobList(String statusFilter) {
+    final filteredOffers = offers.where((offer) => offer['status'] == statusFilter).toList();
+
+    if (filteredOffers.isEmpty) {
+      return Center(child: Text("No $statusFilter jobs yet.", style: const TextStyle(color: textGray)));
     }
 
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        for (final job in jobs) _buildJobCard(job, showActions: isPending),
+        for (final offer in filteredOffers) _buildJobCard(offer, showActions: statusFilter == 'pending'),
       ],
     );
   }
 
-  Widget _buildJobCard(_JobOffer job, {required bool showActions}) {
+  Widget _buildJobCard(dynamic offer, {required bool showActions}) {
+    final job = offer['jobId'];
+    final client = offer['clientId'];
+
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -111,7 +172,7 @@ class _WorkerDashboardState extends State<WorkerDashboard>
               children: [
                 Expanded(
                   child: Text(
-                    job.title,
+                    job['title'] ?? 'Unknown Job',
                     style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -123,17 +184,14 @@ class _WorkerDashboardState extends State<WorkerDashboard>
                   icon: const Icon(Icons.message, color: primaryNavy),
                   onPressed: () {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Chat feature coming soon!'),
-                      ),
+                      const SnackBar(content: Text('Chat feature coming soon!')),
                     );
                   },
                 ),
               ],
             ),
             const SizedBox(height: 4),
-            Text('Client: ${job.client}',
-                style: const TextStyle(color: textGray)),
+            Text('Client: ${client['name'] ?? 'Unknown'}', style: const TextStyle(color: textGray)),
             const SizedBox(height: 4),
             Row(
               children: [
@@ -141,21 +199,18 @@ class _WorkerDashboardState extends State<WorkerDashboard>
                 const SizedBox(width: 4),
                 Expanded(
                   child: Text(
-                    job.location,
+                    job['location'] ?? 'Unknown Location',
                     style: const TextStyle(color: textGray),
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: Colors.green.shade100,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
-                    job.rate,
+                    '\$45/hr',
                     style: TextStyle(
                       color: Colors.green.shade800,
                       fontWeight: FontWeight.bold,
@@ -174,7 +229,7 @@ class _WorkerDashboardState extends State<WorkerDashboard>
                         side: const BorderSide(color: Colors.red),
                         foregroundColor: Colors.red,
                       ),
-                      onPressed: () => _updateJobStatus(job, false),
+                      onPressed: () => respondToOffer(offer['_id'], 'rejected'),
                       child: const Text('Reject'),
                     ),
                   ),
@@ -185,7 +240,7 @@ class _WorkerDashboardState extends State<WorkerDashboard>
                         backgroundColor: Colors.green,
                         foregroundColor: Colors.white,
                       ),
-                      onPressed: () => _updateJobStatus(job, true),
+                      onPressed: () => respondToOffer(offer['_id'], 'accepted'),
                       child: const Text('Accept'),
                     ),
                   ),
@@ -197,18 +252,4 @@ class _WorkerDashboardState extends State<WorkerDashboard>
       ),
     );
   }
-}
-
-class _JobOffer {
-  const _JobOffer({
-    required this.title,
-    required this.client,
-    required this.location,
-    required this.rate,
-  });
-
-  final String title;
-  final String client;
-  final String location;
-  final String rate;
 }

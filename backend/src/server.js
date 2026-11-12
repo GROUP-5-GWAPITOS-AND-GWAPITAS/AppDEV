@@ -44,19 +44,35 @@ const WorkerProfile = mongoose.model('WorkerProfile', new mongoose.Schema({
     shortlisted: { type: Boolean, default: false }
 }));
 
-// --- APPLICATION MODEL (ISSUE #1) ---
+// --- UPDATED APPLICATION MODEL ---
 const Application = mongoose.model('Application', new mongoose.Schema({
     jobId: { type: mongoose.Schema.Types.ObjectId, ref: 'Job', required: true },
     workerId: { type: mongoose.Schema.Types.ObjectId, ref: 'WorkerProfile', required: true },
     clientId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    status: { type: String, enum: ['pending', 'accepted', 'rejected'], default: 'pending' }
+    status: { type: String, enum: ['pending', 'accepted', 'rejected'], default: 'pending' },
+    initiatedBy: { type: String, enum: ['client', 'worker'], default: 'client' } 
 }, { timestamps: true }));
 
 // --- AUTHENTICATION ROUTES ---
 app.post('/api/register', async (req, res) => {
     try {
         const hashedPassword = await bcrypt.hash(req.body.password, 10);
-        const user = await User.create({ ...req.body, password: hashedPassword });
+        const user = await User.create({ 
+            name: req.body.name,
+            email: req.body.email,
+            password: hashedPassword,
+            role: req.body.role || 'client' 
+        });
+
+        if (user.role === 'worker') {
+            await WorkerProfile.create({ 
+                userId: user._id, 
+                roleTitle: "Professional", 
+                location: "Unknown", 
+                skills: [] 
+            });
+        }
+
         res.status(201).json({ message: "User created successfully" });
     } catch (err) {
         res.status(400).json({ error: "Email already exists" });
@@ -72,7 +88,6 @@ app.post('/api/login', async (req, res) => {
 
     const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET);
     
-    // NEW: Send Worker Profile ID if the user is a worker
     let workerProfileId = null;
     if (user.role === 'worker') {
         const profile = await WorkerProfile.findOne({ userId: user._id });
@@ -82,10 +97,11 @@ app.post('/api/login', async (req, res) => {
     res.json({ 
         token, 
         user: { 
+            id: user._id.toString(),
             name: user.name, 
             email: user.email, 
             role: user.role,
-            workerProfileId: workerProfileId 
+            workerProfileId: workerProfileId ? workerProfileId.toString() : null
         } 
     });
 });
@@ -101,16 +117,23 @@ app.post('/api/jobs', async (req, res) => {
     res.status(201).json(newJob);
 });
 
-// --- WORKER & MATCHING ROUTES ---
+// --- WORKER ROUTES ---
+app.get('/api/worker/all-jobs', async (req, res) => {
+    try {
+        const jobs = await Job.find().populate('clientId', 'name');
+        res.json(jobs);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 app.get('/api/workers', async (req, res) => {
     try {
         const { jobId } = req.query;
         const workers = await WorkerProfile.find().populate('userId', 'name');
         
         let job = null;
-        if (jobId) {
-            job = await Job.findById(jobId);
-        }
+        if (jobId) job = await Job.findById(jobId);
 
         if (!job || !job.requiredSkills || job.requiredSkills.length === 0) {
             return res.json(workers.map(w => ({ ...w._doc, match: 0 })));
@@ -118,17 +141,27 @@ app.get('/api/workers', async (req, res) => {
 
         const matchedWorkers = workers.map(worker => {
             const workerSkills = worker.skills || [];
-            const requiredSkills = job.requiredSkills;
-            
-            const matches = requiredSkills.filter(skill => workerSkills.includes(skill));
-            const matchPercentage = Math.round((matches.length / requiredSkills.length) * 100);
-            
+            const matches = job.requiredSkills.filter(skill => workerSkills.includes(skill));
+            const matchPercentage = Math.round((matches.length / job.requiredSkills.length) * 100);
             return { ...worker._doc, match: matchPercentage };
         });
 
         matchedWorkers.sort((a, b) => b.match - a.match);
-
         res.json(matchedWorkers);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.put('/api/worker/profile/:workerId', async (req, res) => {
+    try {
+        const { roleTitle, location, skills } = req.body;
+        const updatedProfile = await WorkerProfile.findByIdAndUpdate(
+            req.params.workerId,
+            { roleTitle, location, skills },
+            { new: true }
+        );
+        res.json({ message: "Profile updated successfully", profile: updatedProfile });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -141,7 +174,7 @@ app.post('/api/workers/shortlist', async (req, res) => {
         const existingOffer = await Application.findOne({ workerId, jobId });
         if (existingOffer) return res.status(400).json({ error: "Offer already sent." });
 
-        const newOffer = await Application.create({ workerId, jobId, clientId });
+        const newOffer = await Application.create({ workerId, jobId, clientId, initiatedBy: 'client' });
         res.status(201).json({ message: "Offer sent successfully", offer: newOffer });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -159,6 +192,34 @@ app.get('/api/worker/offers/:workerId', async (req, res) => {
     }
 });
 
+app.post('/api/worker/apply', async (req, res) => {
+    try {
+        const { workerId, jobId, clientId } = req.body;
+        const existing = await Application.findOne({ workerId, jobId });
+        if (existing) return res.status(400).json({ error: "You already applied for this job." });
+
+        const newApplication = await Application.create({ 
+            workerId, jobId, clientId, 
+            initiatedBy: 'worker',
+            status: 'pending' 
+        });
+        res.status(201).json({ message: "Application sent to client!", application: newApplication });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/client/applications/:clientId', async (req, res) => {
+    try {
+        const applications = await Application.find({ clientId: req.params.clientId })
+            .populate('jobId')
+            .populate({ path: 'workerId', populate: { path: 'userId', select: 'name' } });
+        res.json(applications);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 app.post('/api/worker/offers/:offerId/respond', async (req, res) => {
     try {
         const { status } = req.body;
@@ -170,7 +231,7 @@ app.post('/api/worker/offers/:offerId/respond', async (req, res) => {
     }
 });
 
-// --- SEED ROUTE (ISSUE #3) ---
+// --- SEED ROUTE ---
 app.get('/api/seed', async (req, res) => {
     try {
         await Job.deleteMany({});
@@ -180,8 +241,8 @@ app.get('/api/seed', async (req, res) => {
         
         let client = await User.create({ name: "John Doe", email: "client@test.com", password: await bcrypt.hash("123", 10), role: "client" });
 
-        const job1 = await Job.create({ title: "Plumbing Repair", description: "Leaky sink", status: "Finding pros...", requiredSkills: ["Site Safety", "Blueprint Reading"] });
-        const job2 = await Job.create({ title: "Electrical Wiring", description: "Fix the lights", status: "Finding pros...", requiredSkills: ["Problem Solving"] });
+        const job1 = await Job.create({ title: "Plumbing Repair", description: "Leaky sink", status: "Finding pros...", requiredSkills: ["Site Safety", "Blueprint Reading"], clientId: client._id });
+        const job2 = await Job.create({ title: "Electrical Wiring", description: "Fix the lights", status: "Finding pros...", requiredSkills: ["Problem Solving"], clientId: client._id });
         
         const w1 = await User.create({ name: "Marco Dela Cruz", email: "marco@test.com", password: await bcrypt.hash("123", 10), role: "worker" });
         const w2 = await User.create({ name: "Rafael Santos", email: "rafael@test.com", password: await bcrypt.hash("123", 10), role: "worker" });
@@ -189,10 +250,9 @@ app.get('/api/seed', async (req, res) => {
         const worker1 = await WorkerProfile.create({ userId: w1._id, roleTitle: "Site Construction Supervisor", location: "Cagayan de Oro", skills: ["Site Safety", "Team Coordination"] });
         const worker2 = await WorkerProfile.create({ userId: w2._id, roleTitle: "Site Construction Supervisor", location: "Cagayan de Oro", skills: ["Blueprint Reading", "Problem Solving"] });
 
-        // Create Test Offers
-        await Application.create({ jobId: job1._id, workerId: worker1._id, clientId: client._id, status: 'pending' });
-        await Application.create({ jobId: job2._id, workerId: worker2._id, clientId: client._id, status: 'accepted' });
-        await Application.create({ jobId: job2._id, workerId: worker1._id, clientId: client._id, status: 'rejected' });
+        await Application.create({ jobId: job1._id, workerId: worker1._id, clientId: client._id, status: 'pending', initiatedBy: 'client' });
+        await Application.create({ jobId: job2._id, workerId: worker2._id, clientId: client._id, status: 'accepted', initiatedBy: 'client' });
+        await Application.create({ jobId: job2._id, workerId: worker1._id, clientId: client._id, status: 'rejected', initiatedBy: 'worker' });
 
         res.json({ message: "Database Seeded! Test offers generated.", workerLogin: "marco@test.com / 123" });
     } catch (error) {
