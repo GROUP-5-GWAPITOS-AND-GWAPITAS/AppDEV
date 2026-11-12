@@ -125,7 +125,7 @@ app.post('/api/workers/shortlist', async (req, res) => {
     }
 });
 
-// --- OFFER ROUTES ---
+// --- OFFER ROUTES wa
 app.get('/api/worker/offers/:workerId', async (req, res) => {
     try {
         const offers = await Application.find({ workerId: req.params.workerId })
