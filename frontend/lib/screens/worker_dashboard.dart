@@ -4,8 +4,11 @@ import 'dart:convert';
 import 'package:provider/provider.dart';
 import '../core/theme.dart';
 import '../providers/auth_provider.dart';
+<<<<<<< HEAD
 import 'worker_profile_setup.dart';
 import 'browse_jobs_screen.dart'; // ADDED IMPORT
+=======
+>>>>>>> 442337e284513d10fd81b7622f5f6d52596e3e26
 
 class WorkerDashboard extends StatefulWidget {
   const WorkerDashboard({super.key});
@@ -71,7 +74,11 @@ class _WorkerDashboardState extends State<WorkerDashboard>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text("Offer $status!")),
         );
+<<<<<<< HEAD
         fetchOffers(); 
+=======
+        fetchOffers(); // Refresh the list
+>>>>>>> 442337e284513d10fd81b7622f5f6d52596e3e26
       }
     } catch (e) {
       print("Error responding to offer: $e");
@@ -114,6 +121,7 @@ class _WorkerDashboardState extends State<WorkerDashboard>
           ],
         ),
       ),
+<<<<<<< HEAD
       // --- NEW FLOATING ACTION BUTTON ---
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: accentOrange,
@@ -127,6 +135,8 @@ class _WorkerDashboardState extends State<WorkerDashboard>
         label: const Text("Browse Jobs", style: TextStyle(color: Colors.white)),
       ),
       // ----------------------------------
+=======
+>>>>>>> 442337e284513d10fd81b7622f5f6d52596e3e26
       body: isLoading 
         ? const Center(child: CircularProgressIndicator())
         : TabBarView(
@@ -210,7 +220,11 @@ class _WorkerDashboardState extends State<WorkerDashboard>
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
+<<<<<<< HEAD
                     '\$45/hr',
+=======
+                    '\$45/hr', // Hardcoded rate for now
+>>>>>>> 442337e284513d10fd81b7622f5f6d52596e3e26
                     style: TextStyle(
                       color: Colors.green.shade800,
                       fontWeight: FontWeight.bold,
