@@ -8,11 +8,19 @@ class AuthProvider extends ChangeNotifier {
   String? _userName;
   String? _userRole;
   String? _workerProfileId;
+<<<<<<< HEAD
+  String? _userId;
+=======
+>>>>>>> 442337e284513d10fd81b7622f5f6d52596e3e26
 
   bool get isAuthenticated => _token != null;
   String? get userName => _userName;
   String? get userRole => _userRole;
   String? get workerProfileId => _workerProfileId;
+<<<<<<< HEAD
+  String? get userId => _userId;
+=======
+>>>>>>> 442337e284513d10fd81b7622f5f6d52596e3e26
 
   AuthProvider() { _loadToken(); }
 
@@ -22,6 +30,10 @@ class AuthProvider extends ChangeNotifier {
     _userName = prefs.getString('userName');
     _userRole = prefs.getString('userRole');
     _workerProfileId = prefs.getString('workerProfileId');
+<<<<<<< HEAD
+    _userId = prefs.getString('userId');
+=======
+>>>>>>> 442337e284513d10fd81b7622f5f6d52596e3e26
     notifyListeners();
   }
 
@@ -37,6 +49,18 @@ class AuthProvider extends ChangeNotifier {
       _userName = data['user']['name'];
       _userRole = data['user']['role'];
       _workerProfileId = data['user']['workerProfileId'];
+<<<<<<< HEAD
+      _userId = data['user']['id']; // Might be null if backend didn't send it
+
+      final prefs = await SharedPreferences.getInstance();
+      
+      // Only save if not null
+      if (_token != null) await prefs.setString('token', _token!);
+      if (_userName != null) await prefs.setString('userName', _userName!);
+      if (_userRole != null) await prefs.setString('userRole', _userRole!);
+      if (_workerProfileId != null) await prefs.setString('workerProfileId', _workerProfileId!);
+      if (_userId != null) await prefs.setString('userId', _userId!);
+=======
 
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('token', _token!);
@@ -45,6 +69,7 @@ class AuthProvider extends ChangeNotifier {
       if (_workerProfileId != null) {
         await prefs.setString('workerProfileId', _workerProfileId!);
       }
+>>>>>>> 442337e284513d10fd81b7622f5f6d52596e3e26
       
       notifyListeners();
       return true;
@@ -52,11 +77,11 @@ class AuthProvider extends ChangeNotifier {
     return false;
   }
 
-  Future<bool> register(String name, String email, String password) async {
+  Future<bool> register(String name, String email, String password, String role) async {
     final res = await http.post(
       Uri.parse('http://localhost:3000/api/register'),
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'name': name, 'email': email, 'password': password}),
+      body: jsonEncode({'name': name, 'email': email, 'password': password, 'role': role}),
     );
     return res.statusCode == 201;
   }
@@ -64,7 +89,11 @@ class AuthProvider extends ChangeNotifier {
   Future<void> loginWithGoogle() async {
     _token = "fake_google_token_123";
     _userName = "Google User";
+<<<<<<< HEAD
+    _userRole = "client"; 
+=======
     _userRole = "client"; // Default to client for Google Login
+>>>>>>> 442337e284513d10fd81b7622f5f6d52596e3e26
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('token', _token!);
     await prefs.setString('userName', _userName!);
@@ -77,6 +106,10 @@ class AuthProvider extends ChangeNotifier {
     _userName = null;
     _userRole = null;
     _workerProfileId = null;
+<<<<<<< HEAD
+    _userId = null;
+=======
+>>>>>>> 442337e284513d10fd81b7622f5f6d52596e3e26
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear();
     notifyListeners();

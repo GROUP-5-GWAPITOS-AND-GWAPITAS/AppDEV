@@ -1,9 +1,11 @@
+import 'match_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:provider/provider.dart';
 import '../core/theme.dart';
 import '../providers/auth_provider.dart';
+import 'post_job_screen.dart'; // ADDED THIS IMPORT
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -82,13 +84,18 @@ class _HomeScreenState extends State<HomeScreen> {
                                 borderRadius: BorderRadius.circular(12),
                                 borderSide: BorderSide.none))),
                     const SizedBox(height: 20),
+                    
+                    // --- FIXED POST JOB BUTTON ---
                     InkWell(
                       onTap: () async {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                              content:
-                                  Text('Job posting is not available yet.')),
+                        final result = await Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const PostJobScreen()),
                         );
+                        
+                        if (result == true) {
+                          fetchJobs(); // Refresh the list after posting
+                        }
                       },
                       child: Container(
                         padding: const EdgeInsets.all(20),
@@ -121,6 +128,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ),
                     ),
+                    // ------------------------------
+                    
                     const SizedBox(height: 12),
                     Container(
                       padding: const EdgeInsets.all(20),
@@ -187,10 +196,12 @@ class _HomeScreenState extends State<HomeScreen> {
                         final job = jobs[index];
                         return InkWell(
                           onTap: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                  content:
-                                      Text('Selected job: ${job['title']}')),
+                            // Navigate to Match Screen when a job is clicked
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => MatchScreen(jobId: job['_id']),
+                              ),
                             );
                           },
                           child: Container(

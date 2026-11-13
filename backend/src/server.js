@@ -1,12 +1,13 @@
 const dns = require('dns');
-dns.setServers(['8.8.8.8', '8.8.4.4']);
+dns.setServers(['8.8.8.8']);
 
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const mongoose = require('mongoose');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
+const connectDB = require('./config/db');
+const authRoutes = require('./routes/authRoutes');
+const jobRoutes = require('./routes/jobRoutes');
+const workerRoutes = require('./routes/workerRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -14,11 +15,14 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// --- DATABASE CONNECTION ---
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log('✅ Connected to MongoDB'))
-  .catch((err) => console.log('❌ DB Error: ', err));
+app.use('/api', authRoutes);
+app.use('/api', jobRoutes);
+app.use('/api', workerRoutes);
 
+<<<<<<< HEAD
+connectDB().catch((err) => {
+    console.error('❌ DB Error: ', err);
+=======
 // --- MODELS ---
 const User = mongoose.model('User', new mongoose.Schema({
     name: { type: String, required: true },
@@ -189,6 +193,7 @@ app.get('/api/seed', async (req, res) => {
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
+>>>>>>> 442337e284513d10fd81b7622f5f6d52596e3e26
 });
 
 app.listen(PORT, () => {
